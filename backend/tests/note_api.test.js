@@ -2,12 +2,14 @@ const { test, after, beforeEach, describe } = require('node:test');
 const assert = require('node:assert');
 const mongoose = require('mongoose');
 const supertest = require('supertest');
+const jwt = require('jsonwebtoken');
 const app = require('../app');
 const api = supertest(app);
 
 const helper = require('./test_helper');
 
 const Note = require('../models/note.model');
+const User = require('../models/user.model');
 
 describe('when there is initially some notes saved', () => {
   beforeEach(async () => {
@@ -63,6 +65,17 @@ describe('when there is initially some notes saved', () => {
   });
 
   describe('addition of a new note', () => {
+    let token;
+
+    beforeEach(async () => {
+      const user = await User.findOne();
+      const userForToken = {
+        id: user._id,
+        username: user.username,
+      };
+      token = jwt.sign(userForToken, process.env.SECRET);
+    });
+
     test('succeeds with valid data', async () => {
       const newNote = {
         content: 'async/await simplifies making async calls',
@@ -71,6 +84,7 @@ describe('when there is initially some notes saved', () => {
 
       await api
         .post('/api/notes')
+        .set('Authorization', `Bearer ${token}`)
         .send(newNote)
         .expect(201)
         .expect('Content-Type', /application\/json/);
@@ -87,7 +101,11 @@ describe('when there is initially some notes saved', () => {
         important: true,
       };
 
-      await api.post('/api/notes').send(newNote).expect(400);
+      await api
+        .post('/api/notes')
+        .set('Authorization', `Bearer ${token}`)
+        .send(newNote)
+        .expect(400);
 
       const notesAtEnd = await helper.notesInDb();
 
